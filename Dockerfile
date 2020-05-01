@@ -57,6 +57,7 @@ CMD ["/app/docker-entrypoint.sh", \
      # https://bufferings.hatenablog.com/entry/2019/11/18/000007
      #
      # This app has about 20 threads.
+     # So the `requires resources.requests.memory` of this application is 512Mi is enough
      "-Xms256m", \
      "-Xmx256m", \
      "-XX:MaxMetaspaceSize=128m", \
