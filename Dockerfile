@@ -61,7 +61,7 @@ CMD ["/app/docker-entrypoint.sh", \
      # https://bufferings.hatenablog.com/entry/2019/11/18/000007
      #
      # This app has about 20 threads.
-     # So the `spec.containers.resources.requests.memory` of this application is 300Mi is enough
+     # So the `spec.containers.resources.requests.memory` of this application should be enough for 300Mi.
      "-Xms96m", \
      "-Xmx96m", \
      "-XX:MaxMetaspaceSize=96m", \
