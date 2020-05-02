@@ -37,8 +37,12 @@ CMD ["/app/docker-entrypoint.sh", \
      "-Dcom.sun.management.jmxremote.ssl=false", \
      "-Dcom.sun.management.jmxremote.authenticate=false", \
      \
-     # output logs to stdout and stderr
-     "-Xlog:gc*=debug,safepoint=debug,class+unload=debug:stdout:time,uptime,level,tags", \
+     # Unified JVM Log
+     # Since a bunch of logs may be output, it's disabled in this Dockerfile.
+     # Please configure this setting in your manifest, if you want to collect them.
+     #"-Xlog:gc*=debug,safepoint=debug,class+unload=debug:stdout:time,uptime,level,tags", \
+     \
+     # Fatal Error Log
      "-XX:ErrorFile=/dev/stderr", \
      \
      # Since JFR data is binary, can't output to stdout
