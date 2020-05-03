@@ -5,7 +5,6 @@ import static com.linecorp.armeria.common.HttpStatus.OK;
 import static com.linecorp.armeria.common.SessionProtocol.H1C;
 import static com.linecorp.armeria.common.SessionProtocol.H2;
 import static io.reactivex.BackpressureStrategy.BUFFER;
-import static java.util.Objects.requireNonNull;
 
 import java.time.Duration;
 import java.util.Map;
@@ -93,12 +92,8 @@ public class ReverseProxyService {
                                                              .aggregate())
                                            .toFlowable(BUFFER))
                     .doOnEach(wrappedResponse -> {
-                        final var response = requireNonNull(wrappedResponse.get());
-
-                        if (watch && timeoutSeconds > 0) {
-                            log.debug("watched response={}", response.contentUtf8());
-                        }
-
+                        final var response = wrappedResponse.get();
+                        debugWatchedResponse(watch, timeoutSeconds, response);
                         mutateAdditionalResponseHeaders(ctx, response);
                     })
                     .doOnError(throwable -> log.error("Can't proxy to a k8s API server", throwable))
@@ -232,11 +227,28 @@ public class ReverseProxyService {
                "/api/" + actualUri + separator + queryString;
     }
 
+    private static void debugWatchedResponse(boolean watch, int timeoutSeconds,
+                                             AggregatedHttpResponse response) {
+        if (watch && timeoutSeconds > 0) {
+            final String content;
+            if (response != null) {
+                content = response.contentUtf8();
+            } else {
+                content = null;
+            }
+
+            log.debug("watched response={}", content);
+        }
+    }
+
     private static void mutateAdditionalResponseHeaders(ServiceRequestContext ctx,
                                                         AggregatedHttpResponse response) {
-        ctx.mutateAdditionalResponseHeaders(
-                entries -> response.headers()
-                                   .forEach((BiConsumer<AsciiString, String>) entries::add));
+
+        if (response != null) {
+            ctx.mutateAdditionalResponseHeaders(
+                    entries -> response.headers()
+                                       .forEach((BiConsumer<AsciiString, String>) entries::add));
+        }
     }
 
     @VisibleForTesting
