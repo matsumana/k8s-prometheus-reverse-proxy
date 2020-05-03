@@ -101,6 +101,7 @@ public class ReverseProxyService {
 
                         mutateAdditionalResponseHeaders(ctx, response);
                     })
+                    .doOnError(throwable -> log.error("Can't proxy to a k8s API server", throwable))
                     .map(response -> HttpData.ofUtf8(response.contentUtf8()));
         final var responseHeaders = ResponseHeaders.of(OK);
 
@@ -126,6 +127,7 @@ public class ReverseProxyService {
         return Mono.fromFuture(client.execute(requestHeaders)
                                      .aggregate())
                    .doOnSuccess(response -> mutateAdditionalResponseHeaders(ctx, response))
+                   .doOnError(throwable -> log.error("Can't collect metrics from a k8s API server", throwable))
                    .map(AggregatedHttpResponse::toHttpResponse);
     }
 
@@ -146,6 +148,7 @@ public class ReverseProxyService {
         return Mono.fromFuture(client.execute(requestHeaders)
                                      .aggregate())
                    .doOnSuccess(response -> mutateAdditionalResponseHeaders(ctx, response))
+                   .doOnError(throwable -> log.error("Can't collect metrics from a pod", throwable))
                    .map(AggregatedHttpResponse::toHttpResponse);
     }
 
