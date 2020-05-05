@@ -16,7 +16,8 @@ public class HttpMessageSubscriber implements Subscriber<HttpObject> {
     @Override
     public void onSubscribe(Subscription subscription) {
         this.subscription = subscription;
-        subscription.request(Long.MAX_VALUE);
+//        subscription.request(Long.MAX_VALUE);
+        subscription.request(1);
         publisher.getSubscriber().onSubscribe(subscription);
 //        subscription.request(1);
     }
