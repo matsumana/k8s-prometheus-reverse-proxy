@@ -78,7 +78,7 @@ public class ReverseProxyService {
                                        QueryParams params,
                                        @Param String actualUri) {
 
-        log.trace("proxyApiServer orgRequestHeaders={}", orgRequestHeaders);
+        log.debug("proxyApiServer orgRequestHeaders={}", orgRequestHeaders);
 
         final var watch = Boolean.parseBoolean(params.get("watch", "false"));
         final var timeoutSeconds = params.getInt("timeoutSeconds", 0);
@@ -129,7 +129,7 @@ public class ReverseProxyService {
                                                     @Param String host, @Param int port,
                                                     @Param String actualUri) {
 
-        log.trace("proxyApiServerMetrics orgRequestHeaders={}", orgRequestHeaders);
+        log.debug("proxyApiServerMetrics orgRequestHeaders={}", orgRequestHeaders);
 
         // create new headers with auth token
         final var requestHeaders = newRequestHeadersForApiServers(orgRequestHeaders, actualUri);
@@ -146,7 +146,7 @@ public class ReverseProxyService {
     public Mono<HttpResponse> proxyPodMetrics(ServiceRequestContext ctx, RequestHeaders orgRequestHeaders,
                                               @Param String host, @Param int port, @Param String actualUri) {
 
-        log.trace("proxyPodMetrics orgRequestHeaders={}", orgRequestHeaders);
+        log.debug("proxyPodMetrics orgRequestHeaders={}", orgRequestHeaders);
 
         final var requestHeaders = RequestHeaders.of(orgRequestHeaders)
                                                  .toBuilder()
