@@ -95,13 +95,17 @@ public class ReverseProxyService {
 
         if (watch && timeoutSeconds > 0) {
             // long polling
-            final var publisher = new HttpMessagePublisher();
-            final var subscriber = new HttpMessageSubscriber(publisher);
+//            final var publisher = new HttpMessagePublisher();
+//            final var subscriber = new HttpMessageSubscriber(publisher);
+//            final var httpMessagePipe = new HttpMessagePipe();
 
             ctx.setRequestTimeout(Duration.ofSeconds(timeoutSeconds + TIMEOUT_BUFFER_SECONDS));
 
-            httpResponse.subscribe(subscriber);
-            dataStream = Flux.from(publisher)
+//            httpResponse.subscribe(subscriber);
+//            dataStream = Flux.from(publisher)
+//            httpResponse.subscribe(httpMessagePipe);
+//            dataStream = Flux.from(httpMessagePipe)
+            dataStream = Flux.from(httpResponse)
                              .doOnError(throwable -> log.error("Can't proxy to a k8s API server", throwable))
                              .doOnNext(response -> {
                                  if (response instanceof HttpHeaders) {
@@ -121,7 +125,6 @@ public class ReverseProxyService {
                                  }
                              })
                              .filter(httpData -> !httpData.isEmpty());
-
         } else {
             // initial request
             dataStream = Flux.from(ObservableInterop.fromFuture(httpResponse.aggregate())

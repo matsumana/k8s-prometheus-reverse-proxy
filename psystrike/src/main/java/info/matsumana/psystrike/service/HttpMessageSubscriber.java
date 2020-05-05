@@ -16,21 +16,36 @@ public class HttpMessageSubscriber implements Subscriber<HttpObject> {
     @Override
     public void onSubscribe(Subscription subscription) {
         this.subscription = subscription;
-//        subscription.request(Long.MAX_VALUE);
+
         subscription.request(1);
         publisher.getSubscriber().onSubscribe(subscription);
+
+//        publisher.setSubscription(subscription);
+//
+//        if (publisher.getSubscriber() != null) {
+//            subscription.request(1);
+//            publisher.getSubscriber().onSubscribe(subscription);
+//        }
+
 //        subscription.request(1);
+//        if (publisher.getSubscriber() != null) {
+//            publisher.getSubscriber().onSubscribe(subscription);
+//        }
     }
 
     @Override
     public void onNext(HttpObject httpObject) {
         subscription.request(1);
+//        if (publisher.getSubscriber() != null) {
         publisher.getSubscriber().onNext(httpObject);
+//        }
     }
 
     @Override
     public void onError(Throwable t) {
+//        if (publisher.getSubscriber() != null) {
         publisher.getSubscriber().onError(t);
+//        }
     }
 
     @Override
