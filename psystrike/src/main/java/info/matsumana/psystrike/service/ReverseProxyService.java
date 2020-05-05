@@ -6,7 +6,6 @@ import static com.linecorp.armeria.common.HttpStatus.OK;
 import static com.linecorp.armeria.common.MediaTypeNames.JSON_UTF_8;
 import static com.linecorp.armeria.common.SessionProtocol.H1C;
 import static com.linecorp.armeria.common.SessionProtocol.H2;
-import static io.reactivex.BackpressureStrategy.BUFFER;
 
 import java.time.Duration;
 import java.util.Map;
@@ -44,7 +43,6 @@ import com.linecorp.armeria.server.annotation.Get;
 import com.linecorp.armeria.server.annotation.Param;
 import com.linecorp.armeria.spring.MeterIdPrefixFunctionFactory;
 
-import hu.akarnokd.rxjava2.interop.ObservableInterop;
 import info.matsumana.psystrike.config.KubernetesProperties;
 import io.micrometer.prometheus.PrometheusMeterRegistry;
 import io.netty.util.AsciiString;
@@ -80,7 +78,7 @@ public class ReverseProxyService {
                                        QueryParams params,
                                        @Param String actualUri) {
 
-        log.debug("proxyApiServer orgRequestHeaders={}", orgRequestHeaders);
+        log.trace("proxyApiServer orgRequestHeaders={}", orgRequestHeaders);
 
         final var watch = Boolean.parseBoolean(params.get("watch", "false"));
         final var timeoutSeconds = params.getInt("timeoutSeconds", 0);
@@ -94,26 +92,14 @@ public class ReverseProxyService {
         final HttpResponse httpResponse = client.execute(requestHeaders);
 
         if (watch && timeoutSeconds > 0) {
-            // long polling
-//            final var publisher = new HttpMessagePublisher();
-//            final var subscriber = new HttpMessageSubscriber(publisher);
-//            final var httpMessagePipe = new HttpMessagePipe();
-
+            // streaming request
             ctx.setRequestTimeout(Duration.ofSeconds(timeoutSeconds + TIMEOUT_BUFFER_SECONDS));
-
-//            httpResponse.subscribe(subscriber);
-//            dataStream = Flux.from(publisher)
-//            httpResponse.subscribe(httpMessagePipe);
-//            dataStream = Flux.from(httpMessagePipe)
             dataStream = Flux.from(httpResponse)
                              .doOnError(throwable -> log.error("Can't proxy to a k8s API server", throwable))
                              .doOnNext(response -> {
-                                 if (response instanceof HttpHeaders) {
-//                                     final HttpHeaders httpHeaders = (HttpHeaders) response;
-//                                     mutateAdditionalResponseHeaders(ctx, ResponseHeaders.of(httpHeaders));
-                                 } else {
+                                 if (response instanceof HttpData) {
                                      final HttpData httpData = (HttpData) response;
-                                     debugLongPollingResponse(httpData);
+                                     log.debug("streaming response={}", httpData.toStringUtf8());
                                  }
                              })
                              .map(response -> {
@@ -127,16 +113,14 @@ public class ReverseProxyService {
                              .filter(httpData -> !httpData.isEmpty());
         } else {
             // initial request
-            dataStream = Flux.from(ObservableInterop.fromFuture(httpResponse.aggregate())
-                                                    .toFlowable(BUFFER))
-//                             .doOnNext(response -> mutateAdditionalResponseHeaders(ctx, response.headers()))
+            dataStream = Flux.from(Mono.fromFuture(httpResponse.aggregate()))
                              .doOnError(throwable -> log.error("Can't proxy to a k8s API server", throwable))
                              .map(response -> HttpData.ofUtf8(response.contentUtf8()))
                              .take(1);
         }
 
-//        final var responseHeaders = ResponseHeaders.of(OK);
         final var responseHeaders = ResponseHeaders.of(OK, CONTENT_TYPE, JSON_UTF_8);
+
         return HttpResponse.of(Flux.concat(Flux.just(responseHeaders), dataStream));
     }
 
@@ -145,7 +129,7 @@ public class ReverseProxyService {
                                                     @Param String host, @Param int port,
                                                     @Param String actualUri) {
 
-        log.debug("proxyApiServerMetrics orgRequestHeaders={}", orgRequestHeaders);
+        log.trace("proxyApiServerMetrics orgRequestHeaders={}", orgRequestHeaders);
 
         // create new headers with auth token
         final var requestHeaders = newRequestHeadersForApiServers(orgRequestHeaders, actualUri);
@@ -162,7 +146,7 @@ public class ReverseProxyService {
     public Mono<HttpResponse> proxyPodMetrics(ServiceRequestContext ctx, RequestHeaders orgRequestHeaders,
                                               @Param String host, @Param int port, @Param String actualUri) {
 
-        log.debug("proxyPodMetrics orgRequestHeaders={}", orgRequestHeaders);
+        log.trace("proxyPodMetrics orgRequestHeaders={}", orgRequestHeaders);
 
         final var requestHeaders = RequestHeaders.of(orgRequestHeaders)
                                                  .toBuilder()
@@ -257,17 +241,6 @@ public class ReverseProxyService {
 
         return generatePrefix(kubernetesProperties.getApiUriPrefix()) +
                "/api/" + actualUri + separator + queryString;
-    }
-
-    private static void debugLongPollingResponse(HttpData response) {
-        final String content;
-        if (response != null) {
-            content = response.toStringUtf8();
-        } else {
-            content = null;
-        }
-
-        log.debug("watched response={}", content);
     }
 
     private static void mutateAdditionalResponseHeaders(ServiceRequestContext ctx,
