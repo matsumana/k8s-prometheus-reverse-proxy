@@ -260,7 +260,12 @@ public class ReverseProxyService {
 
     @VisibleForTesting
     String generateRequestHeaderUserAgent() {
-        return "psystrike/" + appVersionHelper.getVersion().getArtifactVersion();
+        final String version = appVersionHelper.getVersion().getArtifactVersion();
+        if (!Strings.isNullOrEmpty(version)) {
+            return "psystrike/" + version;
+        } else {
+            return "";
+        }
     }
 
     @VisibleForTesting
