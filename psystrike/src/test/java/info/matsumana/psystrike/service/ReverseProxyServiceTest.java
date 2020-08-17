@@ -3,7 +3,6 @@ package info.matsumana.psystrike.service;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import java.time.Clock;
-import java.time.Duration;
 import java.time.LocalDateTime;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
@@ -15,6 +14,8 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 
 import com.linecorp.armeria.client.WebClient;
+
+import info.matsumana.psystrike.config.CleanupTimerProperties;
 
 @SpringBootTest
 public class ReverseProxyServiceTest {
@@ -49,30 +50,31 @@ public class ReverseProxyServiceTest {
 
     @Test
     void setupWebClientsCleanupTimer() throws InterruptedException {
-        final long WEB_CLIENTS_REMOVE_TASK_DELAY_MILLIS = Duration.ofSeconds(1).toMillis();
-        final long WEB_CLIENTS_REMOVE_TASK_PERIOD_MILLIS = Duration.ofSeconds(10).toMillis();
-        final long WEB_CLIENTS_REMOVE_THRESHOLD_SECONDS = 30;
-        final long SLEEP_BUFFER_SECONDS = Duration.ofSeconds(1).toMillis();
+        final int SLEEP_BUFFER_MILLIS = 1_000;
 
+        final CleanupTimerProperties cleanupTimerProperties = new CleanupTimerProperties();
+        cleanupTimerProperties.setDelaySeconds(1);
+        cleanupTimerProperties.setPeriodSeconds(10);
+        cleanupTimerProperties.setRemoveThresholdSeconds(30);
         final LocalDateTime now = LocalDateTime.now(clock);
         final Map<String, Pair<WebClient, LocalDateTime>> webClients = new ConcurrentHashMap<>();
         webClients.put("host1:8080", ImmutablePair.of(WebClient.of(), now.minusSeconds(10)));
         webClients.put("host2:8080", ImmutablePair.of(WebClient.of(), now.minusSeconds(20)));
         webClients.put("host3:8080", ImmutablePair.of(WebClient.of(), now.minusSeconds(30)));
 
-        reverseProxyService.setupWebClientsCleanupTimer(webClients, clock,
-                                                        WEB_CLIENTS_REMOVE_TASK_DELAY_MILLIS,
-                                                        WEB_CLIENTS_REMOVE_TASK_PERIOD_MILLIS,
-                                                        WEB_CLIENTS_REMOVE_THRESHOLD_SECONDS);
+        reverseProxyService.setupWebClientsCleanupTimer(webClients, clock, cleanupTimerProperties);
         assertThat(webClients.size()).isEqualTo(3);
 
-        Thread.sleep(WEB_CLIENTS_REMOVE_TASK_DELAY_MILLIS + SLEEP_BUFFER_SECONDS);
+        Thread.sleep(cleanupTimerProperties.getDelaySeconds() * 1_000 + SLEEP_BUFFER_MILLIS);
         assertThat(webClients.size()).isEqualTo(2);
+        assertThat(webClients.get("host1:8080")).isNotNull();
+        assertThat(webClients.get("host2:8080")).isNotNull();
 
-        Thread.sleep(WEB_CLIENTS_REMOVE_TASK_PERIOD_MILLIS + SLEEP_BUFFER_SECONDS);
+        Thread.sleep(cleanupTimerProperties.getPeriodSeconds() * 1_000 + SLEEP_BUFFER_MILLIS);
         assertThat(webClients.size()).isEqualTo(1);
+        assertThat(webClients.get("host1:8080")).isNotNull();
 
-        Thread.sleep(WEB_CLIENTS_REMOVE_TASK_PERIOD_MILLIS + SLEEP_BUFFER_SECONDS);
+        Thread.sleep(cleanupTimerProperties.getPeriodSeconds() * 1_000 + SLEEP_BUFFER_MILLIS);
         assertThat(webClients.size()).isEqualTo(0);
     }
 }

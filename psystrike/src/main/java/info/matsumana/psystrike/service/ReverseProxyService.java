@@ -54,6 +54,7 @@ import com.linecorp.armeria.server.annotation.Get;
 import com.linecorp.armeria.server.annotation.Param;
 
 import hu.akarnokd.rxjava2.interop.SingleInterop;
+import info.matsumana.psystrike.config.CleanupTimerProperties;
 import info.matsumana.psystrike.config.KubernetesProperties;
 import info.matsumana.psystrike.helper.AppVersionHelper;
 import io.micrometer.core.instrument.Tag;
@@ -73,9 +74,6 @@ public class ReverseProxyService {
     private static final String HTTP_HEADER_AUTHORIZATION_VALUE_PREFIX = "Bearer ";
     private static final int CLIENT_MAX_RESPONSE_LENGTH_BYTE = 100 * 1024 * 1024;
     private static final int TIMEOUT_BUFFER_SECONDS = 3;
-    private static final long WEB_CLIENTS_REMOVE_TASK_DELAY_MILLIS = Duration.ofMinutes(1).toMillis();
-    private static final long WEB_CLIENTS_REMOVE_TASK_PERIOD_MILLIS = Duration.ofMinutes(30).toMillis();
-    private static final long WEB_CLIENTS_REMOVE_THRESHOLD_SECONDS = Duration.ofHours(1).toSeconds();
 
     // In Prometheus, watch timeout is random in [minWatchTimeout, 2*minWatchTimeout]
     // https://github.com/prometheus/prometheus/blob/v2.14.0/vendor/k8s.io/client-go/tools/cache/reflector.go#L78-L80
@@ -86,6 +84,7 @@ public class ReverseProxyService {
     private final Timer webClientsCleanupTimer = new Timer("WebClientsCleanupTimer");
 
     private final KubernetesProperties kubernetesProperties;
+    private final CleanupTimerProperties cleanupTimerProperties;
     private final PrometheusMeterRegistry registry;
     private final ClientFactory clientFactory;
     private final AppVersionHelper appVersionHelper;
@@ -93,9 +92,7 @@ public class ReverseProxyService {
 
     @PostConstruct
     void postConstruct() {
-        setupWebClientsCleanupTimer(webClients, clock, WEB_CLIENTS_REMOVE_TASK_DELAY_MILLIS,
-                                    WEB_CLIENTS_REMOVE_TASK_PERIOD_MILLIS,
-                                    WEB_CLIENTS_REMOVE_THRESHOLD_SECONDS);
+        setupWebClientsCleanupTimer(webClients, clock, cleanupTimerProperties);
     }
 
     @Get("regex:^/api/(?<actualUri>.*)$")
@@ -325,7 +322,7 @@ public class ReverseProxyService {
 
     @VisibleForTesting
     void setupWebClientsCleanupTimer(Map<String, Pair<WebClient, LocalDateTime>> webClients,
-                                     Clock clock, long delay, long period, long removeThreshold) {
+                                     Clock clock, CleanupTimerProperties cleanupTimerProperties) {
         final TimerTask webClientsCleanupTask = new TimerTask() {
             @Override
             public void run() {
@@ -336,6 +333,7 @@ public class ReverseProxyService {
                 webClients.forEach((host, pair) -> {
                     final LocalDateTime usedAt = pair.getRight();
                     final long diff = SECONDS.between(usedAt, now);
+                    final long removeThreshold = cleanupTimerProperties.getRemoveThresholdSeconds();
 
                     log.debug("host={}, usedAt={}, now={} diff={}, removeThreshold={}",
                               host, usedAt, now, diff, removeThreshold);
@@ -350,6 +348,8 @@ public class ReverseProxyService {
             }
         };
 
+        final int delay = cleanupTimerProperties.getDelaySeconds() * 1000;
+        final int period = cleanupTimerProperties.getPeriodSeconds() * 1000;
         webClientsCleanupTimer.scheduleAtFixedRate(webClientsCleanupTask, delay, period);
     }
 }
